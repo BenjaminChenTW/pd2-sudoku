@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <algorithm>
+#include <cstdio>
 
 using namespace std;
 
@@ -21,7 +22,10 @@ class Sudoku {
 		void RandByRow(int* mapTemp);
 		void RandByColumn(int* mapTemp);
 		void CopyMap(int* mapTemp);
-		void DrawMap();
+		void DrawMap(int* map);
+		int OnlyAns();
+		bool Rule(int* arr, int num);
+		void fillOne(int* arr, int num, int location, int mode);
 		static const int mapSize = 144;
 		int mapAll[mapSize];
 		int mapTrans[mapSize];

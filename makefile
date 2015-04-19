@@ -12,4 +12,4 @@ Sudoku.o: Sudoku.cpp Sudoku.h
 	g++ -g -c Sudoku.cpp -o Sudoku.o
 
 clean:
-	rm *.o give_question solve core
+	rm *.o give_question solve
