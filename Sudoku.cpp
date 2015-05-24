@@ -27,14 +27,14 @@ void Sudoku::GiveQuestion() {
 	int mapTemp[mapSize];
 	RandByNum();
 	RandByBRow(mapTemp);
-	CopyMap(mapTemp);
+	CopyMap(mapTemp, mapTrans);
 	RandByBColumn(mapTemp);
-	CopyMap(mapTemp);
+	CopyMap(mapTemp, mapTrans);
 	RandByRow(mapTemp);
-	CopyMap(mapTemp);
+	CopyMap(mapTemp, mapTrans);
 	RandByColumn(mapTemp);
-	CopyMap(mapTemp);
-	do{createBlank();} while(OnlyAns() != 1);
+	CopyMap(mapTemp, mapTrans);
+	createBlank();
 	DrawMap(mapTrans);
 }
 void Sudoku::RandByNum() {
@@ -99,23 +99,43 @@ void Sudoku::RandByRow(int* mapTemp) {
 }
 void Sudoku::RandByColumn(int* mapTemp) {
 	int arr[3] = {1, 2, 3};
-	random_shuffle(arr, arr+3);
-	for (int j=0, i=0; j<48; j++) {
-		for (int z=0; z<3; z++) {
-			mapTemp[i] = mapTrans[(arr[z]-1)+j*3];
-			i++;
+	for (int i=0; i < 4; i++) {
+		random_shuffle(arr, arr+3);
+		for (int z=0, x=0; x < 12; z++) {
+			if (z == 3) {
+				z = 0;
+				x++;
+			}
+			mapTemp[z+x*12+i*3] = mapTrans[arr[z]-1+x*12+i*3];
 		}
 	}
 }
 void Sudoku::createBlank() {
-	for (int i=0; i<mapSize; i++)
-		if (mapTrans[i] != -1)
-			if (!(rand() % 4))
-				mapTrans[i] = 0;
+    int mapTemp[mapSize];
+    CopyMap(mapTrans, mapTemp);
+    do{
+        for (int i=0; i<mapSize; i++)
+            if (mapTemp[i] != -1)
+                if (!(rand() % 3))
+                    mapTemp[i] = 0;
+    }while(!Solve(mapTrans));
+    CopyMap(mapTemp, mapTrans);
+    int numTemp;
+    while(true){
+        numTemp = rand() % mapSize;
+        if (mapTrans[numTemp] != 0 && mapTrans[numTemp] != -1) {
+            CopyMap(mapTrans, mapTemp);
+            mapTemp[numTemp] = 0;
+            if (Solve(mapTemp))
+                CopyMap(mapTemp, mapTrans);
+            else
+                break;
+        }
+    }
 }
-void Sudoku::CopyMap(int* mapTemp) {
+void Sudoku::CopyMap(int* mapTemp, int* targetMap) {
 	for (int i=0; i<mapSize; i++)
-		mapTrans[i] = mapTemp[i];
+		targetMap[i] = mapTemp[i];
 }
 void Sudoku::DrawMap(int* map) {
 	for (int i=0; i<mapSize; i++) {
@@ -140,25 +160,38 @@ void Sudoku::ReadIn() {
 	//DrawMap(mapAll);
 }
 void Sudoku::Solve() {
-	int mode = OnlyAns();
-	if (mode == 0) {
+	if (!OnlyAns()) {
 		cout << 0 << endl;
 	}
-	else if (mode == 1) {
+    else if (solveSudoku()) {
 		cout << 1 << endl;
-		solveSudoku();
 		DrawMap(mapAll);
 	}
-	else if (mode == 2) {
+	else {
 		cout << 2 << endl;
 	}
 }
-void Sudoku::solveSudoku(){
+bool Sudoku::Solve(int* mapTrans) {
+    CopyMap(mapTrans, mapAll);
+	if (!OnlyAns()) {
+		return false;
+	}
+    else if (solveSudoku()) {
+		return true;
+	}
+	else {
+		return false;
+	}
+}
+bool Sudoku::solveSudoku(){
     int ctr = 0;
     for (int i=0; i < mapSize; i++){
-        if (mapTrans[i] == 1)
+        if (mapAll[i] == 0)
             for (int j=0; j < 9; j++)
                 ans[i][j] = true;
+        else if (mapAll[i] == -1)
+            for (int j=0; j < 9; j++)
+                ans[i][j] = false;
         else {
             for (int j=0; j < 9; j++)
                 ans[i][j] = false;
@@ -166,92 +199,47 @@ void Sudoku::solveSudoku(){
         }
     }
     do{
-        checkRep();
-        onlyAns();
         fillOne();
+        checkRep();
+        onlyAns(1);
         ctr++;
-        if (ctr >= 100) {
-            cerr << "Runtime error." << endl;
-            exit(2);
+        if (ctr >= 5) {
+            return false;
         }
     }while(!finishAns());
+    //cout << ctr << endl;
+    return true;
 }
-int Sudoku::OnlyAns() {
+bool Sudoku::OnlyAns() {
+    if (!Check())
+        return false;
 	int mapCheckTw[12]={};
 	int mapCheckNi[9]={};
-	int numCtr = 0;
-	int blankCtr = 0;
-	int allBlank = 0;
-	for (int i=0, z=0; i<144; i+=12, z++) { //By row
+	for (int i=0; i<144; i+=12) { //By row
 		for (int j=0; j<12; j++) {
 			mapCheckTw[j] = mapAll[i+j];
-			if (mapCheckTw[j] != 0 && mapCheckTw[j] != -1)
-				numCtr++;
-			else if (mapCheckTw[i] == 0)
-				blankCtr++;
 		}
 		if (!Rule(mapCheckTw,12)) {
-			cout << 1;
-			return 0;
+			return false;
 		}
-		if (blankCtr == 9)
-			allBlank++;
-		if (allBlank >= 2) {
-			cout << 0;
-			return 2;
-		}
-		if (z == 3) {
-			z =0;
-			allBlank = 0;
-		}
-		blankCtr = 0;
 	}
-	if (numCtr <17) {
-		cout << 1;
-		return 2;
-	}
-	allBlank = 0;
-	for (int i=0, z=0; i<12; i++, z++) { //Bycolumn
+	for (int i=0; i<12; i++) { //By column
 		for (int j=0; j<12; j++) {
 			mapCheckTw[j] = mapAll[i+j*12];
-			if (mapCheckTw[j] == 0)
-				blankCtr++;
 		}
 		if (!Rule(mapCheckTw,12)) {
-			cout << 2;
-			return 0;
+			return false;
 		}
-		if (blankCtr == 9)
-			allBlank++;
-		if (allBlank >= 2) {
-			cout << 2;
-			return 2;
-		}
-		if (z == 3) {
-			z =0;
-			allBlank = 0;
-		}
-		blankCtr = 0;
 	}
-	allBlank = 0;
 	for (int i=0; i<16; i++) {
 		for (int j=0; j<9; j++) {
 			mapCheckNi[j] = mapAll[(i/4)*36+(i%4)*3+(j/3)*12+(j%3)];
-			if (mapCheckNi[j] == 0 )
-				blankCtr++;
 		}
 		if (!Rule(mapCheckNi, 9)) {
-			cout << 3;
-			return 0;
-		}
-		if (blankCtr == 9)
-			allBlank++;
-		if (allBlank >= 4) {
-			cout << 3;
-			return 2;
+			return false;
 		}
 	}
-	return 1;
+	return true;
 }
 bool Sudoku::Rule(int* arr, int num) {
 	int numExist[9] = {};
@@ -261,6 +249,31 @@ bool Sudoku::Rule(int* arr, int num) {
 	for (int i=0; i<9; i++)
 		if (numExist[i] > 1)
 			return false;
+	return true;
+}
+bool Sudoku::Check(){
+    int ctr =0;
+    int mapTemp[mapSize] = {};
+    for (int i=0; i<mapSize; i++){
+        if (mapAll[i] == -1){
+            mapTemp[i] = -1;
+            ctr++;
+        }
+    }
+    if (ctr != 36)
+        return false;
+    for (int x=0, y=0; x<mapSize; x++){
+        if (mapTemp[x] == -1){
+            if ((x % 3) != 0)
+                return false;
+            for (int j=0; j<9; j++) {
+                if (mapTemp[x+j%3+(j/3)*12] != -1)
+                    return false;
+            }
+            y++;
+            x = y*36-1;
+        }
+    }
 	return true;
 }
 void Sudoku::fillOne() {
@@ -343,32 +356,32 @@ void Sudoku::checkRep(){
         if (mapTrans[i] == 1){
             for (int j=0; j < 12; j++){ // BY ¾î
                 if ((i%12)!=j){
-                    if (mapTrans[(i/12)*12+j] == 0)
+                    if (mapTrans[(i/12)*12+j] == 0 && mapAll[(i/12)*12+j] != -1)
                         ans[i][mapAll[(i/12)*12+j]-1] = false;
                 }
             }
             for (int j=0; j < 12; j++){ // BY ª½
                 if (i!=(j+(i/12)*12)){
-                    if (mapTrans[i%12+j*12] == 0)
+                    if (mapTrans[i%12+j*12] == 0 && mapAll[i%12+j*12] != -1)
                         ans[i][mapAll[i%12+j*12]-1] = false;
                 }
             }
             for (int j=0; j < 9; j++){ // BY ®c
-                if (mapTrans[(i/36)*36+(((i-(i/36)*36)%12)/4)*4+(j/3)*12+j%3] == 0)
-                    ans[i][mapAll[(i/36)*36+(((i-(i/36)*36)%12)/4)*4+(j/3)*12+j%3]-1] = false;
+                if (mapTrans[(i/36)*36+(((i-(i/36)*36)%12)/3)*3+(j/3)*12+j%3] == 0 && mapAll[(i/36)*36+(((i-(i/36)*36)%12)/3)*3+(j/3)*12+j%3] != -1)
+                    ans[i][mapAll[(i/36)*36+(((i-(i/36)*36)%12)/3)*3+(j/3)*12+j%3]-1] = false;
             }
         }
     }
 }
-void Sudoku::onlyAns(){
+void Sudoku::onlyAns(int num){
     for (int i=0; i < mapSize; i++){
         if (mapTrans[i] == 1){
-            for (int j=0, ctr=0; j < 9; j++){ // BY ¾î
+            for (int j=0, ctr=0; j < 9; j++, ctr = 0){ // BY ¾î
                 for (int t=0; t<12; t++){
                     if (ans[(i/12)*12+t][j])
                         ctr++;
                 }
-                if (ctr == 1){
+                if (ctr == 1 && ans[i][j] == true){
                     mapAll[i] = j+1;
                     mapTrans[i] = 0;
                     for (int t=0; t<9; t++){
@@ -377,12 +390,16 @@ void Sudoku::onlyAns(){
                     }
                 }
             }
-            for (int j=0, ctr=0; j < 9; j++){ // BY ª½
+        }
+    }
+    for (int i=0; i < mapSize; i++){
+        if (mapTrans[i] == 1){
+            for (int j=0, ctr=0; j < 9; j++, ctr = 0){ // BY ª½
                 for (int t=0; t<12; t++){
                     if (ans[i%12+t*12][j])
                         ctr++;
                 }
-                if (ctr == 1){
+                if (ctr == 1 && ans[i][j] == true){
                     mapAll[i] = j+1;
                     mapTrans[i] = 0;
                     for (int t=0; t<9; t++){
@@ -391,12 +408,16 @@ void Sudoku::onlyAns(){
                     }
                 }
             }
-            for (int j=0, ctr=0; j < 9; j++){ // BY ®c
+        }
+    }
+    for (int i=0; i < mapSize; i++){
+        if (mapTrans[i] == 1){
+            for (int j=0, ctr=0; j < 9; j++, ctr = 0){ // BY ®c
                 for (int t=0; t<9; t++){
                     if (ans[(i/36)*36+(((i-(i/36)*36)%12)/4)*4+(j/3)*12+j%3][j])
                         ctr++;
                 }
-                if (ctr == 1){
+                if (ctr == 1 && ans[i][j] == true){
                     mapAll[i] = j+1;
                     mapTrans[i] = 0;
                     for (int t=0; t<9; t++){
@@ -413,4 +434,19 @@ bool Sudoku::finishAns(){
         if (mapTrans[i] == 1) return false;
     }
     return true;
+}
+void Sudoku::DrawArr(){
+    for (int i=0; i < mapSize; i++){
+        cout << "#" << i+1 << ": ";
+        for (int j=0; j<9; j++){
+            cout << ans[i][j] << " ";
+        }
+        cout << endl;
+    }
+    for (int i=0; i<12; i++){
+        for (int j=0; j<12; j++){
+            cout << mapTrans[i*12+j] << " ";
+        }
+        cout << endl;
+    }
 }
